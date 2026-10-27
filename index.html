@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>T-Shirt 3D Configurator</title>
+  <style>
+    * { box-sizing: border-box; }
+    
+    #tshirt-configurator-wrapper {
+      position: relative !important;
+      width: 100%;
+      height: 700px;
+      background-color: #e2e4e8;
+      border-radius: 16px;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #18181b;
+      display: flex;
+      flex-direction: row;
+      transition: background-color 0.4s ease;
+    }
+
+    /* Left 3D Stage */
+    .stage-container {
+      position: relative;
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Floating View Switcher (Desktop/Mobile) */
+    .view-switcher {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .view-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #52525b;
+      transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: #18181b;
+      color: #ffffff;
+    }
+
+    /* Screenshot Floating Button for Mobile Header Top Right */
+    .mobile-stage-screenshot {
+      display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+    }
+
+    /* Compact Horizontal Color Bar */
+    .color-bar-wrapper {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .model-zoom-wrapper {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      width: min(190px, calc(100% - 48px));
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.62);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    #model-zoom-on-stage {
+      display: block;
+      width: 100%;
+      accent-color: #dedede;
+      cursor: pointer;
+    }
+    .color-bar {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      padding: 8px 12px;
+      border-radius: 30px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      max-width: 100%;
+      scrollbar-width: none;
+    }
+    .color-bar::-webkit-scrollbar { display: none; }
+    .color-btn {
+      width: 24px;
+      height: 24px;
+      min-width: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .color-btn:hover, .color-btn.active {
+      transform: scale(1.15);
+      border-color: #000000;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.2);
+    }
+
+    /* Right Sidebar (Desktop) */
+    .sidebar-panel {
+      width: 360px;
+      height: 100% !important;
+      max-height: calc(100vh - 40px) !important;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-left: 1px solid rgba(0, 0, 0, 0.08);
+      display: flex !important;
+      flex-direction: column !important;
+      z-index: 15;
+      box-shadow: -5px 0 25px rgba(0,0,0,0.03);
+      overflow: hidden !important;
+      position: relative;
+    }
+
+    @media (min-width: 769px) {
+      .sidebar-panel {
+        width: 360px;
+        height: 100% !important;
+        max-height: calc(100vh - 40px) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+      }
+      .mobile-zoom-control { display: none !important; }
+      .mobile-customize-trigger { display: none !important; }
+    }
+
+    @keyframes subtleBodyShimmer {
+      0% { background-position: 0% 50%; box-shadow: 0 -4px 14px rgba(180, 140, 210, 0.85); }
+      50% { background-position: 100% 50%; box-shadow: 0 -5px 18px rgba(130, 200, 220, 0.90); }
+      100% { background-position: 0% 50%; box-shadow: 0 -4px 14px rgba(220, 150, 180, 0.85); }
+    }
+
+    @keyframes greenBodyShimmer {
+      0% { background-position: 0% 50%; box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4); }
+      50% { background-position: 100% 50%; box-shadow: 0 6px 20px rgba(130, 220, 180, 0.6); }
+      100% { background-position: 0% 50%; box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4); }
+    }
+
+    .mobile-customize-trigger { display: none; }
+
+    /* Mobile Sheet (screen up to 768px) */
+    @media (max-width: 768px) {
+      .mobile-stage-screenshot { display: block !important; }
+
+      .sidebar-panel.is-collapsed {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 120px !important;
+        z-index: 20 !important;
+      }
+
+      .sidebar-panel.is-collapsed .sidebar-header,
+      .sidebar-panel.is-collapsed .tab-content,
+      .sidebar-panel.is-collapsed .sidebar-footer {
+        display: none !important;
+      }
+
+      .sidebar-panel.is-collapsed .mobile-customize-trigger {
+        pointer-events: auto !important;
+        display: flex !important;
+        position: absolute !important;
+        bottom: 16px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: min(240px, 80%);
+        padding: 12px 24px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        background: linear-gradient(135deg, rgba(235, 210, 245, 0.95), rgba(190, 230, 240, 0.95), rgba(245, 210, 225, 0.95)) !important;
+        background-size: 200% 200% !important;
+        animation: subtleBodyShimmer 4s ease infinite alternate;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        color: #18181b;
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+      }
+
+      .sidebar-panel:not(.is-collapsed) {
+        height: 40vh !important;
+        max-height: 40vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        transition: height 0.3s ease !important;
+        background: rgba(255, 255, 255, 0.92) !important;
+        border-radius: 20px 20px 0 0;
+      }
+
+      .sidebar-panel:not(.is-collapsed) .tab-content {
+        flex: 1 1 auto !important;
+        overflow-y: scroll !important;
+        min-height: 0 !important;
+      }
+
+      .mobile-zoom-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #52525b;
+        background: rgba(255, 255, 255, 0.65);
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.06);
+        width: 100%;
+      }
+      .mobile-zoom-control input[type="range"] {
+        flex: 1;
+        accent-color: #18181b;
+        cursor: pointer;
+      }
+    }
+
+    .tab-content {
+      flex: 1 1 auto !important;
+      padding: 16px;
+      padding-bottom: 50px !important;
+      overflow-y: scroll !important;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 0 !important;
+    }
+    .sidebar-footer {
+      padding: 12px 16px;
+      background: #ffffff;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      flex-shrink: 0 !important;
+      z-index: 10;
+    }
+
+    .sidebar-footer .btn-apply {
+      width: 100% !important;
+      display: block !important;
+    }
+
+    .tab-content::-webkit-scrollbar { width: 8px !important; display: block !important; }
+    .tab-content::-webkit-scrollbar-track { background: #f1f1f1 !important; border-radius: 4px; }
+    .tab-content::-webkit-scrollbar-thumb { background: #a0a0a0 !important; border-radius: 4px; }
+    .tab-content::-webkit-scrollbar-thumb:hover { background: #717171 !important; }
+
+    .sidebar-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #f4f4f5;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.85);
+    }
+    .sidebar-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .sidebar-title { font-size: 15px; font-weight: 700; }
+
+    .control-section { display: flex; flex-direction: column; gap: 12px; }
+    .section-title { margin: 0; font-size: 12px; font-weight: 700; color: #27272a; }
+
+    /* Embedded Editor Canvas Frame (Desktop) */
+    .editor-canvas-card {
+      width: 100%;
+      height: 300px !important;
+      min-height: 300px !important;
+      flex-shrink: 0 !important;
+      background: #e4e4e7;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      padding: 10px;
+    }
+    #editor-canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      cursor: grab;
+      touch-action: none;
+      background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(-45deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      background-size: 14px 14px;
+      background-position: 0 0, 0 7px, 7px -7px, -7px 0px;
+      border-radius: 6px;
+    }
+    #editor-canvas:active { cursor: grabbing; }
+
+    /* D-Pad Arrows Controller for Mobile */
+    .dpad-container {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 8px 0;
+      width: 100%;
+    }
+    .dpad-row {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      justify-content: center;
+    }
+    .dpad-btn {
+      width: 36px;
+      height: 36px;
+      background: #e4e4e7;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #18181b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .dpad-btn:active { background: #d4d4d8; transform: scale(0.95); }
+
+    /* Controls UI */
+    .btn {
+      background: #18181b;
+      color: #ffffff;
+      padding: 9px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #27272a; }
+    .btn-secondary { background: rgba(24, 24, 27, 0.08); color: #18181b; }
+    .btn-secondary:hover { background: rgba(24, 24, 27, 0.15); }
+    .screenshot-btn { background: #18181b; color: #ffffff; }
+    .screenshot-btn:hover { background: #27272a; }
+    .btn-reset { background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.25); }
+    .btn-reset:hover { background: rgba(239, 68, 68, 0.2); }
+    
+    .btn-apply {
+      background: linear-gradient(135deg, #10b981, #22c55e, #14b8a6, #10b981) !important;
+      background-size: 200% 200% !important;
+      animation: greenBodyShimmer 4s ease infinite alternate !important;
+      color: #ffffff !important;
+      width: 100%;
+      padding: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .btn-apply:hover { transform: translateY(-1px); }
+
+    .tool-btn {
+      background: rgba(24, 24, 27, 0.08);
+      color: #18181b;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tool-btn:hover { background: rgba(24, 24, 27, 0.15); }
+    .tool-btn.active { background: #18181b; color: #ffffff; }
+
+    .text-textarea {
+      width: 100%;
+      min-height: 50px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(0,0,0,0.15);
+      font-size: 12px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .row-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .select-input { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.15); font-size: 11px; background: #ffffff; }
+    .color-input { width: 32px; height: 32px; border: none; background: none; cursor: pointer; border-radius: 4px; }
+    .slider-control { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #52525b; width: 100%; }
+    .slider-control input[type="range"] { flex: 1; cursor: pointer; }
+
+    input[type="file"] { display: none; }
+    
+    #loading {
+      position: absolute !important;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 13px;
+      color: rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      font-weight: 600;
+      background: rgba(255,255,255,0.95);
+      padding: 10px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      z-index: 30;
+    }
+
+    @media (max-width: 768px) {
+      #tshirt-configurator-wrapper { flex-direction: column; height: 80vh; max-height: 800px; border-radius: 0; }
+      .stage-container { height: 100%; flex: 1; }
+      .sidebar-panel { width: 100%; height: auto; border-left: none; position: absolute; bottom: 0; left: 0; transition: all 0.28s ease; }
+      .editor-canvas-card { display: none !important; }
+      .dpad-container { display: flex !important; }
+      .color-bar-wrapper { bottom: 86px; }
+      .model-zoom-wrapper { bottom: 140px; }
+      .sidebar-panel:not(.is-collapsed) .screenshot-btn { display: none; }
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/DRACOLoader.js"></script>
+</head>
+<body>
+
+<div id="tshirt-configurator-wrapper" data-product-id="743">
+  <div id="loading">Loading 3D Models...</div>
+
+  <!-- 3D Canvas Container -->
+  <div class="stage-container">
+    <div id="canvas-container"></div>
+
+    <!-- View Switcher -->
+    <div class="view-switcher">
+      <button class="view-btn active" id="btn-view-front" onclick="switchView('front')">FRONT</button>
+      <button class="view-btn" id="btn-view-back" onclick="switchView('back')">BACK</button>
+    </div>
+
+    <!-- Floating Screenshot for Mobile Top-Right -->
+    <div class="mobile-stage-screenshot">
+      <button class="btn btn-secondary screenshot-btn" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;" onclick="takeScreenshot(event)">Screenshot</button>
+    </div>
+
+    <!-- Horizontal Color Picker -->
+    <div class="model-zoom-wrapper">
+      <input type="range" id="model-zoom-on-stage" min="0" max="100" step="1" value="30" oninput="handleCameraZoom(this.value)" aria-label="Model zoom">
+    </div>
+    <div class="color-bar-wrapper">
+      <div class="color-bar">
+        <div class="color-btn active" style="background: #ffffff;" title="White" onclick="changeTshirtColor(0xdedede, event)"></div>
+        <div class="color-btn" style="background: #111111;" title="Black" onclick="changeTshirtColor(0x111111, event)"></div>
+        <div class="color-btn" style="background: #e2e4e1;" title="Ash" onclick="changeTshirtColor(0xd2d4d1, event)"></div>
+        <div class="color-btn" style="background: #999da0;" title="Sport Grey" onclick="changeTshirtColor(0x898d90, event)"></div>
+        <div class="color-btn" style="background: #2b49b3;" title="Blue" onclick="changeTshirtColor(0x2b49b3, event)"></div>
+        <div class="color-btn" style="background: #a4c4e8;" title="Light Blue" onclick="changeTshirtColor(0x94b4d8, event)"></div>
+        <div class="color-btn" style="background: #1c4d25;" title="Green" onclick="changeTshirtColor(0x1c4d25, event)"></div>
+        <div class="color-btn" style="background: #a8e0cb;" title="Mint Green" onclick="changeTshirtColor(0x98d0bb, event)"></div>
+        <div class="color-btn" style="background: #fadc41;" title="Yellow" onclick="changeTshirtColor(0xeacc31, event)"></div>
+        <div class="color-btn" style="background: #f26522;" title="Orange" onclick="changeTshirtColor(0xe25512, event)"></div>
+        <div class="color-btn" style="background: #c21820;" title="Red" onclick="changeTshirtColor(0xb20810, event)"></div>
+        <div class="color-btn" style="background: #3d2314;" title="Dark Chocolate" onclick="changeTshirtColor(0x3d2314, event)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Integrated Sidebar / Bottom Sheet -->
+  <div class="sidebar-panel">
+    <button class="mobile-customize-trigger" onclick="toggleMobileSheet()">✨ Customize!</button>
+
+    <div class="sidebar-header" id="sidebarHeader">
+      <div class="sidebar-handle-bar"></div>
+      <div class="sidebar-header-top">
+        <div class="sidebar-title">Customizer</div>
+        <button class="btn btn-secondary screenshot-btn" style="padding: 5px 10px; font-size: 11px;" onclick="takeScreenshot()">Screenshot</button>
+      </div>
+      <div class="mobile-zoom-control">
+        <span>Zoom</span>
+        <input type="range" id="mobile-sheet-zoom" min="0" max="100" step="1" value="30" oninput="handleCameraZoom(this.value)" aria-label="Mobile Model Zoom">
+      </div>
+    </div>
+
+    <!-- Editor: preview and all image/text controls in one place -->
+    <div class="tab-content active" id="tab-editor">
+      <div class="editor-canvas-card">
+        <canvas id="editor-canvas" width="1024" height="1024"></canvas>
+      </div>
+      <div class="row-group" style="justify-content: space-between;">
+        <button class="tool-btn" onclick="resetCurrentTransforms()">Reset Placement</button>
+        <button class="btn btn-reset" style="padding: 5px 10px; font-size: 11px;" onclick="clearCurrentPrint()">Remove Print</button>
+      </div>
+      <div class="control-section">
+        <h3 class="section-title">Add Image</h3>
+        <label for="sidebar-file-upload" class="tool-btn" style="cursor: pointer; text-align: center; padding: 10px;">📁 Choose Image File (PNG/JPG)</label>
+        <input type="file" id="sidebar-file-upload" accept="image/*" onchange="handleFileSelect(event)">
+        
+        <div class="row-group">
+          <button class="tool-btn" onclick="resetImageTransform()">Fit Scale</button>
+          <button class="tool-btn" onclick="centerImage()">Center Image</button>
+          <button class="tool-btn" onclick="toggleFlipX()">Flip H</button>
+          <button class="tool-btn" onclick="alignZero()">0°</button>
+          <button class="tool-btn" onclick="removeImageBackground()" style="background: rgba(239, 68, 68, 0.08); color: #dc2626;">Remove BG</button>
+        </div>
+
+        <!-- Mobile D-Pad for Image Position -->
+        <div class="dpad-container">
+          <div class="dpad-row">
+            <button class="dpad-btn" onclick="moveElement('image', 0, -10)">↑</button>
+          </div>
+          <div class="dpad-row">
+            <button class="dpad-btn" onclick="moveElement('image', -10, 0)">←</button>
+            <button class="dpad-btn" onclick="moveElement('image', 0, 10)">↓</button>
+            <button class="dpad-btn" onclick="moveElement('image', 10, 0)">→</button>
+          </div>
+        </div>
+
+        <div class="slider-control">
+          <span>Scale:</span>
+          <input type="range" id="scale-range" min="0.1" max="3" step="0.01" value="1" oninput="handleScaleSlider(this.value)">
+        </div>
+        <div class="slider-control">
+          <span>Rotate:</span>
+          <input type="range" id="rotate-range" min="-180" max="180" value="0" oninput="handleRotateSlider(this.value)">
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3 class="section-title">Add Text</h3>
+        <div class="row-group" style="justify-content: space-between;">
+          <span style="font-size: 11px; font-weight: 700;">Enable Text</span>
+          <button class="tool-btn" id="btn-toggle-text" onclick="toggleTextEnable()">Off</button>
+        </div>
+
+        <textarea id="text-input-val" class="text-textarea" placeholder="Enter text..." oninput="handleTextChange()">YOUR LOGO</textarea>
+
+        <div class="row-group">
+          <select id="font-family-select" class="select-input" onchange="handleTextChange()">
+            <option value="sans-serif">Sans-Serif</option>
+            <option value="serif">Serif</option>
+            <option value="monospace">Monospace</option>
+            <option value="cursive">Cursive</option>
+            <option value="Impact">Impact</option>
+          </select>
+          <input type="color" id="text-color-picker" class="color-input" value="#000000" onchange="handleTextChange()" title="Text Color">
+        </div>
+
+        <div class="row-group">
+          <button class="tool-btn" id="btn-align-left" onclick="setTextAlign('left')">⬅</button>
+          <button class="tool-btn active" id="btn-align-center" onclick="setTextAlign('center')">↔</button>
+          <button class="tool-btn" id="btn-align-right" onclick="setTextAlign('right')">➡</button>
+          <button class="tool-btn" onclick="centerText()">Center Text</button>
+          <button class="tool-btn" id="btn-bold" onclick="toggleBold()">B</button>
+          <button class="tool-btn" id="btn-italic" onclick="toggleItalic()">I</button>
+        </div>
+
+        <!-- Mobile D-Pad for Text Position -->
+        <div class="dpad-container">
+          <div class="dpad-row">
+            <button class="dpad-btn" onclick="moveElement('text', 0, -10)">↑</button>
+          </div>
+          <div class="dpad-row">
+            <button class="dpad-btn" onclick="moveElement('text', -10, 0)">←</button>
+            <button class="dpad-btn" onclick="moveElement('text', 0, 10)">↓</button>
+            <button class="dpad-btn" onclick="moveElement('text', 10, 0)">→</button>
+          </div>
+        </div>
+
+        <div class="slider-control">
+          <span>Size:</span>
+          <input type="range" id="text-size-range" min="20" max="180" step="2" value="60" oninput="handleTextSizeChange(this.value)">
+        </div>
+        <div class="slider-control">
+          <span>Rotate:</span>
+          <input type="range" id="text-rotate-range" min="-180" max="180" value="0" oninput="handleTextRotateSlider(this.value)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Action -->
+    <div class="sidebar-footer">
+      <button id="apply-3d-config-btn" class="btn btn-apply">Apply Design</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let scene, camera, renderer, controls;
+  let keyLight, fillLight, rimLight;
+  const printMeshes = {};
+  let mainTshirtMesh = null;
+  let fabricNormalMap = null;
+  let fabricAOMap = null;
+  const textureLoader = new THREE.TextureLoader();
+
+  let currentEditingType = 'front';
+  let currentTshirtColorHex = 0xdedede;
+
+  const MIN_CAMERA_DIST = 1.6;
+  const MAX_CAMERA_DIST = 3.0;
+  const MOBILE_SHEET_MODEL_OFFSET = -0.2;
+
+  let audioCtx = null;
+
+  function playColorClickSound() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.02);
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.02);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.02);
+    } catch(e) {}
+  }
+
+  function playScreenshotSound() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      const bufferSize = audioCtx.sampleRate * 0.04;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+      }
+      
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 1000;
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      noise.start();
+    } catch(e) {}
+  }
+
+  const printTransformState = {
+    front: {
+      image: { loaded: false, scale: 1, rotate: 0, flipX: 1, x: 512, y: 512, objectURL: null },
+      text: { enabled: false, content: 'YOUR LOGO', font: 'sans-serif', color: '#000000', bold: false, italic: false, align: 'center', size: 60, x: 512, y: 650, rotate: 0 }
+    },
+    back: {
+      image: { loaded: false, scale: 1, rotate: 0, flipX: 1, x: 512, y: 512, objectURL: null },
+      text: { enabled: false, content: 'YOUR LOGO', font: 'sans-serif', color: '#000000', bold: false, italic: false, align: 'center', size: 60, x: 512, y: 650, rotate: 0 }
+    }
+  };
+
+  const loadedImageObjects = { front: null, back: null };
+  let editorCanvas, editorCtx;
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
+  let draggingElement = null;
+
+  function showError(msg) {
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) {
+      loadingEl.style.color = '#dc2626';
+      loadingEl.style.display = 'block';
+      loadingEl.style.opacity = '1';
+      loadingEl.innerText = `⚠️ ${msg}`;
+    }
+  }
+
+  function init() {
+    const container = document.getElementById('canvas-container');
+    const stage = document.querySelector('.stage-container');
+
+    scene = new THREE.Scene();
+    updateDynamicBackground(0xdedede);
+
+    const width = stage.clientWidth || 600;
+    const height = stage.clientHeight || 700;
+
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+    camera.position.set(0, 0, 2.5);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+    keyLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    keyLight.position.set(2, 2, 2);
+    scene.add(keyLight);
+
+    fillLight = new THREE.DirectionalLight(0xdbeafe, 0.6);
+    fillLight.position.set(-2, 1, 2);
+    scene.add(fillLight);
+
+    rimLight = new THREE.DirectionalLight(0xfffbeb, 0.8);
+    rimLight.position.set(0, 2, -2);
+    scene.add(rimLight);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
+    controls.enableZoom = false;
+
+    renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+
+    controls.addEventListener('change', () => {
+      if (!camera || !controls) return;
+      const currentDist = camera.position.distanceTo(controls.target);
+      const percent = (1 - (currentDist - MIN_CAMERA_DIST) / (MAX_CAMERA_DIST - MIN_CAMERA_DIST)) * 100;
+      const stageZoomInput = document.getElementById('model-zoom-on-stage');
+      if (stageZoomInput) stageZoomInput.value = Math.min(Math.max(percent, 0), 100);
+      const mobileSheetZoomInput = document.getElementById('mobile-sheet-zoom');
+      if (mobileSheetZoomInput) mobileSheetZoomInput.value = Math.min(Math.max(percent, 0), 100);
+    });
+
+    const gltfLoader = new THREE.GLTFLoader();
+    const dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    gltfLoader.setDRACOLoader(dracoLoader);
+
+    let loadedCount = 0;
+    const totalFiles = 3;
+
+    function checkAllLoaded() {
+      loadedCount++;
+      if (loadedCount >= totalFiles) {
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) {
+          loadingEl.style.opacity = '0';
+          setTimeout(() => { loadingEl.style.display = 'none'; }, 400);
+        }
+      }
+    }
+
+    function onProgress(xhr) {
+      if (xhr.lengthComputable) {
+        const percent = Math.round((xhr.loaded / xhr.total) * 100);
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl && loadedCount < totalFiles) {
+          loadingEl.innerText = `Loading 3D Models... ${percent}%`;
+        }
+      }
+    }
+
+    // ТАК КАК МОДЕЛИ И INDEX.HTML ЛЕЖАТ В ОДНОЙ ПАПКЕ:
+    const baseUrl = './';
+
+    gltfLoader.load(
+      baseUrl + 'tshirt-v1.glb',
+      (gltf) => {
+        mainTshirtMesh = gltf.scene;
+        mainTshirtMesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(mat => {
+              mat.roughness = 0.92;
+              mat.metalness = 0.0;
+              mat.envMapIntensity = 0.2;
+              if (mat.color) mat.color.setHex(0xdedede);
+              if (mat.normalMap) {
+                fabricNormalMap = mat.normalMap;
+                mat.normalScale.set(0.6, 0.6);
+              }
+              if (mat.aoMap) {
+                fabricAOMap = mat.aoMap;
+                mat.aoMapIntensity = 0.8;
+              }
+            });
+          }
+        });
+        scene.add(mainTshirtMesh);
+        checkAllLoaded();
+      },
+      onProgress,
+      (err) => { showError('Error loading tshirt-v1.glb'); }
+    );
+
+    function createPrintMaterial() {
+      const mat = new THREE.MeshStandardMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        roughness: 0.85,
+        metalness: 0.0,
+        envMapIntensity: 0.1
+      });
+      if (fabricNormalMap) {
+        mat.normalMap = fabricNormalMap;
+        mat.normalScale.set(1.2, 1.2);
+      }
+      if (fabricAOMap) {
+        mat.aoMap = fabricAOMap;
+        mat.aoMapIntensity = 1.0;
+      }
+      return mat;
+    }
+
+    gltfLoader.load(
+      baseUrl + 'front_print.glb',
+      (gltf) => {
+        gltf.scene.traverse((child) => {
+          if (child.isMesh) {
+            child.material = createPrintMaterial();
+            printMeshes['front'] = child;
+          }
+        });
+        scene.add(gltf.scene);
+        checkAllLoaded();
+      },
+      onProgress,
+      (err) => { showError('Error loading front_print.glb'); }
+    );
+
+    gltfLoader.load(
+      baseUrl + 'back_print.glb',
+      (gltf) => {
+        gltf.scene.traverse((child) => {
+          if (child.isMesh) {
+            child.material = createPrintMaterial();
+            printMeshes['back'] = child;
+          }
+        });
+        scene.add(gltf.scene);
+        checkAllLoaded();
+      },
+      onProgress,
+      (err) => { showError('Error loading back_print.glb'); }
+    );
+
+    setupEditorEvents();
+
+    stage.addEventListener('click', () => {
+      const panel = document.querySelector('.sidebar-panel');
+      if (window.matchMedia('(max-width: 768px)').matches && panel && !panel.classList.contains('is-collapsed')) {
+        toggleMobileSheet();
+      }
+    });
+
+    window.addEventListener('resize', onWindowResize);
+    animate();
+  }
+
+  function updateDynamicBackground(colorHex) {
+    const c = new THREE.Color(colorHex);
+    const luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const bgLuminance = 0.98 - (luminance * 0.78);
+    const bg = new THREE.Color().setHSL(0, 0, bgLuminance);
+    if (scene) scene.background = bg;
+
+    const wrapper = document.getElementById('tshirt-configurator-wrapper');
+    if (wrapper) wrapper.style.backgroundColor = '#' + bg.getHexString();
+  }
+
+  function handleCameraZoom(val) {
+    if (!camera || !controls) return;
+    const zoomValue = String(val);
+    const stageZoomInput = document.getElementById('model-zoom-on-stage');
+    const mobileSheetZoomInput = document.getElementById('mobile-sheet-zoom');
+
+    if (stageZoomInput && stageZoomInput.value !== zoomValue) stageZoomInput.value = zoomValue;
+    if (mobileSheetZoomInput && mobileSheetZoomInput.value !== zoomValue) mobileSheetZoomInput.value = zoomValue;
+
+    const percent = parseFloat(val) / 100;
+    const targetDist = MAX_CAMERA_DIST - percent * (MAX_CAMERA_DIST - MIN_CAMERA_DIST);
+    const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+    camera.position.copy(direction.multiplyScalar(targetDist));
+  }
+
+  function moveElement(elementType, deltaX, deltaY) {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    if (!state) return;
+
+    if (elementType === 'image' && state.image.loaded) {
+      state.image.x += deltaX;
+      state.image.y += deltaY;
+    } else if (elementType === 'text' && state.text.enabled) {
+      state.text.x += deltaX;
+      state.text.y += deltaY;
+    }
+
+    drawEditorCanvasAndApply();
+  }
+
+  function setupEditorEvents() {
+    editorCanvas = document.getElementById('editor-canvas');
+    if (!editorCanvas) return;
+    editorCtx = editorCanvas.getContext('2d');
+
+    function startDrag(clientX, clientY) {
+      isDragging = true;
+      dragStart = { x: clientX, y: clientY };
+
+      const rect = editorCanvas.getBoundingClientRect();
+      const canvasX = ((clientX - rect.left) / rect.width) * editorCanvas.width;
+      const canvasY = ((clientY - rect.top) / rect.height) * editorCanvas.height;
+
+      const state = printTransformState[currentEditingType];
+      if (!state) return;
+
+      const imgPos = state.image.loaded ? state.image : null;
+      const textPos = state.text.enabled ? state.text : null;
+
+      const distToText = textPos ? Math.hypot(canvasX - textPos.x, canvasY - textPos.y) : Infinity;
+      const distToImage = imgPos ? Math.hypot(canvasX - imgPos.x, canvasY - imgPos.y) : Infinity;
+
+      draggingElement = distToText < distToImage ? 'text' : 'image';
+    }
+
+    function moveDrag(clientX, clientY) {
+      if (!isDragging || !currentEditingType) return;
+      const rect = editorCanvas.getBoundingClientRect();
+      const scaleX = editorCanvas.width / (rect.width || 1024);
+      const scaleY = editorCanvas.height / (rect.height || 1024);
+
+      const dx = (clientX - dragStart.x) * scaleX;
+      const dy = (clientY - dragStart.y) * scaleY;
+
+      const state = printTransformState[currentEditingType];
+      if (!state) return;
+
+      if (draggingElement === 'image' && state.image.loaded) {
+        state.image.x += dx;
+        state.image.y += dy;
+      } else if (draggingElement === 'text' && state.text.enabled) {
+        state.text.x += dx;
+        state.text.y += dy;
+      }
+
+      dragStart = { x: clientX, y: clientY };
+      drawEditorCanvasAndApply();
+    }
+
+    function endDrag() {
+      isDragging = false;
+      draggingElement = null;
+    }
+
+    editorCanvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+    window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', endDrag);
+
+    editorCanvas.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      e.preventDefault();
+      startDrag(touch.clientX, touch.clientY);
+    }, { passive: false });
+    window.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+      e.preventDefault();
+      moveDrag(touch.clientX, touch.clientY);
+    }, { passive: false });
+    window.addEventListener('touchend', endDrag);
+    window.addEventListener('touchcancel', endDrag);
+  }
+
+  function changeTshirtColor(colorHex, evt) {
+    if (!mainTshirtMesh) return;
+    playColorClickSound();
+
+    currentTshirtColorHex = colorHex;
+    const stageZoomInput = document.getElementById('model-zoom-on-stage');
+    if (stageZoomInput) {
+      stageZoomInput.style.accentColor = '#' + new THREE.Color(colorHex).getHexString();
+    }
+    mainTshirtMesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach(mat => { if (mat.color) mat.color.setHex(colorHex); });
+      }
+    });
+
+    updateDynamicBackground(colorHex);
+    document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+    if (evt && evt.target) evt.target.classList.add('active');
+  }
+
+  function switchView(type) {
+    currentEditingType = type;
+    document.getElementById('btn-view-front').classList.toggle('active', type === 'front');
+    document.getElementById('btn-view-back').classList.toggle('active', type === 'back');
+
+    if (controls && camera) {
+      const currentDist = camera.position.distanceTo(controls.target);
+      const targetAngle = type === 'front' ? 0 : Math.PI;
+      const currentOffsetY = controls.target.y;
+      
+      camera.position.set(
+        currentDist * Math.sin(targetAngle),
+        currentOffsetY,
+        currentDist * Math.cos(targetAngle)
+      );
+      controls.update();
+    }
+
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function syncSidebarUI() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+
+    document.getElementById('text-input-val').value = state.text.content;
+    document.getElementById('font-family-select').value = state.text.font;
+    document.getElementById('text-color-picker').value = state.text.color;
+    document.getElementById('text-size-range').value = state.text.size;
+    document.getElementById('text-rotate-range').value = state.text.rotate;
+    document.getElementById('scale-range').value = state.image.scale;
+    document.getElementById('rotate-range').value = state.image.rotate;
+
+    document.getElementById('btn-bold').classList.toggle('active', state.text.bold);
+    document.getElementById('btn-italic').classList.toggle('active', state.text.italic);
+
+    document.querySelectorAll('[id^="btn-align-"]').forEach(btn => {
+      if (btn.id.startsWith('btn-align-')) btn.classList.remove('active');
+    });
+    const alignBtn = document.getElementById(`btn-align-${state.text.align}`);
+    if (alignBtn) alignBtn.classList.add('active');
+
+    const toggleTextBtn = document.getElementById('btn-toggle-text');
+    if (toggleTextBtn) {
+      toggleTextBtn.innerText = state.text.enabled ? 'On' : 'Off';
+      toggleTextBtn.classList.toggle('active', state.text.enabled);
+    }
+  }
+
+  function toggleTextEnable() {
+    const state = printTransformState[currentEditingType];
+    state.text.enabled = !state.text.enabled;
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function handleTextChange() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    state.text.content = document.getElementById('text-input-val').value;
+    state.text.font = document.getElementById('font-family-select').value;
+    state.text.color = document.getElementById('text-color-picker').value;
+    drawEditorCanvasAndApply();
+  }
+
+  function handleTextSizeChange(val) {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].text.size = parseFloat(val);
+    drawEditorCanvasAndApply();
+  }
+
+  function toggleBold() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    state.text.bold = !state.text.bold;
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function toggleItalic() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    state.text.italic = !state.text.italic;
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function setTextAlign(align) {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].text.align = align;
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file && currentEditingType) {
+      const state = printTransformState[currentEditingType];
+      if (state.image.objectURL) URL.revokeObjectURL(state.image.objectURL);
+
+      const objectUrl = URL.createObjectURL(file);
+      state.image.objectURL = objectUrl;
+
+      const img = new Image();
+      img.onload = () => {
+        loadedImageObjects[currentEditingType] = img;
+        state.image.loaded = true;
+        resetImageTransform();
+        openMobileSheet();
+      };
+      img.onerror = () => {
+        showError('Failed to load image file.');
+      };
+      img.src = objectUrl;
+    }
+  }
+
+  function removeImageBackground() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    if (!state.image.loaded || !loadedImageObjects[currentEditingType]) return;
+
+    const img = loadedImageObjects[currentEditingType];
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    tempCanvas.width = img.width;
+    tempCanvas.height = img.height;
+    tempCtx.drawImage(img, 0, 0);
+
+    const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imgData.data;
+    const width = tempCanvas.width;
+    const height = tempCanvas.height;
+
+    const queue = [];
+    const visited = new Uint8Array(width * height);
+
+    for (let x = 0; x < width; x++) {
+      queue.push([x, 0]);
+      queue.push([x, height - 1]);
+    }
+    for (let y = 0; y < height; y++) {
+      queue.push([0, y]);
+      queue.push([width - 1, y]);
+    }
+
+    const bgR = (data[0] + data[(width-1)*4] + data[((height-1)*width)*4] + data[((height-1)*width + width-1)*4]) / 4;
+    const bgG = (data[1] + data[(width-1)*4+1] + data[((height-1)*width)*4+1] + data[((height-1)*width + width-1)*4+1]) / 4;
+    const bgB = (data[2] + data[(width-1)*4+2] + data[((height-1)*width)*4+2] + data[((height-1)*width + width-1)*4+2]) / 4;
+
+    const tolerance = 48;
+
+    while (queue.length > 0) {
+      const [x, y] = queue.pop();
+      if (x < 0 || x >= width || y < 0 || y >= height) continue;
+
+      const idx = (y * width + x);
+      if (visited[idx]) continue;
+      visited[idx] = 1;
+
+      const pIdx = idx * 4;
+      const r = data[pIdx];
+      const g = data[pIdx + 1];
+      const b = data[pIdx + 2];
+
+      const diff = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB);
+
+      if (diff < tolerance || (r > 240 && g > 240 && b > 240)) {
+        data[pIdx + 3] = 0;
+
+        queue.push([x + 1, y]);
+        queue.push([x - 1, y]);
+        queue.push([x, y + 1]);
+        queue.push([x, y - 1]);
+      }
+    }
+
+    tempCtx.putImageData(imgData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = () => {
+      loadedImageObjects[currentEditingType] = newImg;
+      drawEditorCanvasAndApply();
+    };
+    newImg.src = tempCanvas.toDataURL('image/png');
+  }
+
+  function renderPrintToCanvas(type, targetCanvas) {
+    const ctx = targetCanvas.getContext('2d');
+    const state = printTransformState[type];
+
+    ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+
+    if (state.image.loaded && loadedImageObjects[type]) {
+      const img = loadedImageObjects[type];
+      ctx.save();
+      const renderX = (type === 'back') ? (512 - (state.image.x - 512)) : state.image.x;
+      ctx.translate(renderX, state.image.y);
+      ctx.rotate((state.image.rotate * Math.PI) / 180);
+      ctx.scale(state.image.scale * state.image.flipX, state.image.scale);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.restore();
+    }
+
+    if (state.text.enabled && state.text.content.trim() !== '') {
+      ctx.save();
+      const renderTextX = (type === 'back') ? (512 - (state.text.x - 512)) : state.text.x;
+      ctx.translate(renderTextX, state.text.y);
+      ctx.rotate((state.text.rotate * Math.PI) / 180);
+
+      const fontStyle = `${state.text.bold ? 'bold ' : ''}${state.text.italic ? 'italic ' : ''}${state.text.size}px ${state.text.font}`;
+      ctx.font = fontStyle;
+      ctx.fillStyle = state.text.color;
+      ctx.textAlign = state.text.align;
+      ctx.textBaseline = 'middle';
+
+      const lines = state.text.content.split('\n');
+      const lineHeight = state.text.size * 1.2;
+      const startY = -(lineHeight * (lines.length - 1) / 2);
+
+      lines.forEach((line, i) => {
+        ctx.fillText(line, 0, startY + i * lineHeight);
+      });
+
+      ctx.restore();
+    }
+  }
+
+  function drawEditorCanvasAndApply() {
+    if (!currentEditingType || !editorCtx) return;
+    renderPrintToCanvas(currentEditingType, editorCanvas);
+
+    const printDataUrl = editorCanvas.toDataURL('image/png');
+    applyPrintToMesh(currentEditingType, printDataUrl);
+  }
+
+  function resetImageTransform() {
+    if (!currentEditingType) return;
+    const state = printTransformState[currentEditingType];
+    const canvasWidth = editorCanvas ? editorCanvas.width : 1024;
+    const canvasHeight = editorCanvas ? editorCanvas.height : 1024;
+
+    state.image.x = canvasWidth / 2;
+    state.image.y = canvasHeight / 2;
+    state.image.rotate = 0;
+    state.image.flipX = 1;
+
+    if (state.image.loaded && loadedImageObjects[currentEditingType]) {
+      const img = loadedImageObjects[currentEditingType];
+      const scaleFit = Math.min((canvasWidth * 0.7) / img.width, (canvasHeight * 0.7) / img.height);
+      state.image.scale = scaleFit;
+    } else {
+      state.image.scale = 1;
+    }
+
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function resetCurrentTransforms() {
+    resetImageTransform();
+    if (currentEditingType) {
+      const state = printTransformState[currentEditingType];
+      const canvasWidth = editorCanvas ? editorCanvas.width : 1024;
+      const canvasHeight = editorCanvas ? editorCanvas.height : 1024;
+      state.text.x = canvasWidth / 2;
+      state.text.y = canvasHeight / 2;
+      state.text.rotate = 0;
+      syncSidebarUI();
+      drawEditorCanvasAndApply();
+    }
+  }
+
+  function centerImage() {
+    if (!currentEditingType) return;
+    const canvasWidth = editorCanvas ? editorCanvas.width : 1024;
+    const canvasHeight = editorCanvas ? editorCanvas.height : 1024;
+    const image = printTransformState[currentEditingType].image;
+    image.x = canvasWidth / 2;
+    image.y = canvasHeight / 2;
+    drawEditorCanvasAndApply();
+  }
+
+  function centerText() {
+    if (!currentEditingType) return;
+    const canvasWidth = editorCanvas ? editorCanvas.width : 1024;
+    const canvasHeight = editorCanvas ? editorCanvas.height : 1024;
+    const text = printTransformState[currentEditingType].text;
+    text.x = canvasWidth / 2;
+    text.y = canvasHeight / 2;
+    drawEditorCanvasAndApply();
+  }
+
+  function toggleMobileSheet() {
+    const panel = document.querySelector('.sidebar-panel');
+    if (!panel || !window.matchMedia('(max-width: 768px)').matches) return;
+    panel.classList.toggle('is-collapsed');
+    positionModelForMobileSheet(!panel.classList.contains('is-collapsed'));
+    setTimeout(onWindowResize, 300);
+  }
+
+  function positionModelForMobileSheet(isSheetOpen) {
+    if (!camera || !controls || !window.matchMedia('(max-width: 768px)').matches) return;
+    const targetY = isSheetOpen ? MOBILE_SHEET_MODEL_OFFSET : 0;
+    const deltaY = targetY - controls.target.y;
+    controls.target.y = targetY;
+    camera.position.y += deltaY;
+    controls.update();
+  }
+
+  function openMobileSheet() {
+    const panel = document.querySelector('.sidebar-panel');
+    if (panel && panel.classList.contains('is-collapsed')) toggleMobileSheet();
+  }
+
+  function toggleFlipX() {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].image.flipX *= -1;
+    drawEditorCanvasAndApply();
+  }
+
+  function alignZero() {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].image.rotate = 0;
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  function handleScaleSlider(val) {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].image.scale = parseFloat(val);
+    drawEditorCanvasAndApply();
+  }
+
+  function handleRotateSlider(val) {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].image.rotate = parseFloat(val);
+    drawEditorCanvasAndApply();
+  }
+
+  function handleTextRotateSlider(val) {
+    if (!currentEditingType) return;
+    printTransformState[currentEditingType].text.rotate = parseFloat(val);
+    drawEditorCanvasAndApply();
+  }
+
+  function applyPrintToMesh(type, imageSrc) {
+    const mesh = printMeshes[type];
+    if (!mesh) return;
+
+    textureLoader.load(imageSrc, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.flipY = false;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+
+      if (type === 'back') {
+        texture.repeat.set(1, 1);
+        texture.offset.set(0, 0);
+      } else {
+        texture.repeat.set(1, 1);
+        texture.offset.set(0, 0);
+      }
+
+      mesh.material.map = texture;
+      mesh.material.opacity = 1.0;
+      mesh.material.needsUpdate = true;
+    }, undefined, (err) => {
+      console.error('Texture load error:', err);
+    });
+  }
+
+  function clearCurrentPrint() {
+    const type = currentEditingType;
+    const printMesh = printMeshes[type];
+    if (printMesh) {
+      printMesh.material.opacity = 0.0;
+      printMesh.material.map = null;
+      printMesh.material.needsUpdate = true;
+    }
+
+    const state = printTransformState[type];
+    if (state.image.objectURL) URL.revokeObjectURL(state.image.objectURL);
+
+    loadedImageObjects[type] = null;
+    printTransformState[type] = {
+      image: { loaded: false, scale: 1, rotate: 0, flipX: 1, x: 512, y: 512, objectURL: null },
+      text: { enabled: false, content: 'YOUR LOGO', font: 'sans-serif', color: '#000000', bold: false, italic: false, align: 'center', size: 60, x: 512, y: 650, rotate: 0 }
+    };
+
+    syncSidebarUI();
+    drawEditorCanvasAndApply();
+  }
+
+  async function takeScreenshot(evt) {
+    playScreenshotSound();
+    const btn = evt ? evt.target : document.querySelector('.sidebar-header .btn-secondary');
+    const originalBg = scene.background;
+    scene.background = null;
+
+    renderer.render(scene, camera);
+
+    renderer.domElement.toBlob(async (blob) => {
+      scene.background = originalBg;
+      renderer.render(scene, camera);
+
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+
+        const originalText = btn.innerText;
+        btn.innerText = 'Copied!';
+        setTimeout(() => { btn.innerText = originalText; }, 1500);
+      } catch (err) {
+        console.error('Failed to copy screenshot: ', err);
+      }
+    }, 'image/png');
+  }
+
+  function onWindowResize() {
+    const stage = document.querySelector('.stage-container');
+    if (!stage) return;
+    const width = stage.clientWidth;
+    const height = stage.clientHeight;
+
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (controls) controls.update();
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    init();
+    syncSidebarUI();
+
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      document.querySelector('.sidebar-panel')?.classList.add('is-collapsed');
+    }
+
+    const applyBtn = document.getElementById('apply-3d-config-btn');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', async function() {
+        this.disabled = true;
+        this.innerText = 'Processing...';
+
+        try {
+          const origCamPos = camera.position.clone();
+          const origTarget = controls.target.clone();
+
+          const distance = 1.6;
+          const angle = 0;
+          camera.position.set(distance * Math.sin(angle), 0, distance * Math.cos(angle));
+          controls.target.set(0, 0, 0);
+          controls.update();
+
+          renderer.render(scene, camera);
+          const snapshot = renderer.domElement.toDataURL('image/png');
+
+          let frontPrintCanvas = null;
+          let backPrintCanvas = null;
+
+          const offscreenCanvas = document.createElement('canvas');
+          offscreenCanvas.width = 1024;
+          offscreenCanvas.height = 1024;
+
+          if (printTransformState.front.image.loaded || printTransformState.front.text.enabled) {
+            renderPrintToCanvas('front', offscreenCanvas);
+            frontPrintCanvas = offscreenCanvas.toDataURL('image/png');
+          }
+          if (printTransformState.back.image.loaded || printTransformState.back.text.enabled) {
+            renderPrintToCanvas('back', offscreenCanvas);
+            backPrintCanvas = offscreenCanvas.toDataURL('image/png');
+          }
+
+          camera.position.copy(origCamPos);
+          controls.target.copy(origTarget);
+          controls.update();
+
+          const productId = 743;
+          
+          const payload = {
+            action: 'github_pages_custom_3d',
+            product_id: productId,
+            tshirt_color: '#' + new THREE.Color(currentTshirtColorHex).getHexString(),
+            front_print: printTransformState.front,
+            back_print: printTransformState.back
+          };
+
+          console.log('GitHub Config Payload:', payload);
+          alert('Дизайн успешно применен! Данные конфигурации выведены в консоль браузера (F12).');
+
+          const link = document.createElement('a');
+          link.download = 'tshirt-design.png';
+          link.href = snapshot;
+          link.click();
+
+          this.disabled = false;
+          this.innerText = 'Apply Design';
+        } catch (err) {
+          console.error('Error:', err);
+          alert('Error: ' + err.message);
+          this.disabled = false;
+          this.innerText = 'Apply Design';
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>
